@@ -1,6 +1,6 @@
 [project]
 name = "terch"
-version = "0.1.2"
+version = "0.2.0"
 description = "Modular CLI search engine with rich UI and interactive navigation"
 readme = "README.md"
 requires-python = ">=3.10"
