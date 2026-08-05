@@ -30,7 +30,7 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser(
-        description="Modular CLI Search Engine with Rich UI & Navigation",
+        description="Modular CLI Meta-Search Tool with a Full-Screen TUI",
         epilog="Run 'terch config' to view or edit the config file (~/.config/terch/config.toml) from the terminal.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-> A modular, lightning-fast CLI search engine built with Rich UI formatting and interactive keyboard navigation.
+> A modular, lightning-fast CLI meta-search tool — query Google, DuckDuckGo, Bing, Brave, or SearXNG from one full-screen, keyboard-driven TUI.
 
 ---
 
