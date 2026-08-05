@@ -9,6 +9,7 @@ load_dotenv(".env.local", override=True)
 
 from search_cli.cache import ResultCache
 from search_cli.config import load_config
+from search_cli.config_cli import run_config_command
 from search_cli.engine import perform_search
 from search_cli.exporters import export_results
 from search_cli.history import HistoryStore
@@ -18,6 +19,10 @@ from search_cli.ui import console
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "config":
+        run_config_command(sys.argv[2:])
+        return
+
     config = load_config()
     configured_providers = get_configured_providers()
     if not configured_providers:
@@ -26,6 +31,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Modular CLI Search Engine with Rich UI & Navigation",
+        epilog="Run 'terch config' to view or edit the config file (~/.config/terch/config.toml) from the terminal.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

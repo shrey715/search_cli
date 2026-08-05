@@ -125,6 +125,18 @@ history_enabled = true
 
 CLI flags (`-p`, `-n`, `--no-cache`) always override the config file.
 
+You don't need to open the file by hand — `terch config` manages it from the terminal:
+
+```bash
+terch config show                        # print the full current config
+terch config get max_results             # print one value
+terch config set max_results 15          # set a value (creates the file if needed)
+terch config set default_provider none   # clear an optional value
+terch config unset max_results           # reset one key back to its default
+terch config path                        # print the config file's location
+
+```
+
 ### Caching & History
 
 Searches are cached on disk (`~/.cache/terch/cache.json`) for `cache_ttl` seconds (default 15 minutes), so re-running the same query against the same provider doesn't hit the network again. Disable it per-run with `--no-cache`, or permanently via `cache_enabled = false` in the config file.
