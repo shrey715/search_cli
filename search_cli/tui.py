@@ -6,7 +6,7 @@ from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, Input, Label, ListItem, ListView, Static
 
@@ -18,7 +18,7 @@ from search_cli.history import HistoryStore
 from search_cli.models import SearchResult
 from search_cli.providers.base import BaseSearchProvider
 
-INPUT_IDS = ("search-input", "filter-input", "export-input")
+MAX_SUGGESTIONS = 6
 
 
 class ResultItem(ListItem):
@@ -41,6 +41,19 @@ class ResultItem(ListItem):
     def set_marked(self, marked: bool) -> None:
         self.marked = marked
         self.query_one(Label).update(self._label())
+
+
+class SearchInput(Input):
+    """The new-search Input; Tab accepts the highlighted history suggestion.
+
+    (Bound here rather than at the App level because Screen reserves plain
+    "tab" for focus-cycling, which would otherwise shadow an App binding.)
+    """
+
+    BINDINGS = [Binding("tab", "accept_suggestion", "Accept suggestion", show=False)]
+
+    def action_accept_suggestion(self) -> None:
+        self.app.action_accept_suggestion()
 
 
 class HistoryScreen(ModalScreen[Optional[dict]]):
@@ -125,11 +138,24 @@ class SearchApp(App):
         padding: 0 1;
         color: $text-muted;
     }
-    #search-input, #filter-input, #export-input {
+    #search-box {
+        display: none;
+        dock: bottom;
+        height: auto;
+    }
+    #search-box.visible {
+        display: block;
+    }
+    #search-suggestions {
+        height: auto;
+        padding: 0 1;
+        color: $text-muted;
+    }
+    #filter-input, #export-input {
         display: none;
         dock: bottom;
     }
-    #search-input.visible, #filter-input.visible, #export-input.visible {
+    #filter-input.visible, #export-input.visible {
         display: block;
     }
     """
@@ -146,6 +172,8 @@ class SearchApp(App):
         Binding("r", "refresh_search", "Refresh"),
         Binding("slash", "new_search", "New search"),
         Binding("f", "filter", "Filter"),
+        Binding("n", "next_page", "Next page"),
+        Binding("N", "prev_page", "Prev page"),
         Binding("p", "switch_provider", "Switch engine"),
         Binding("e", "export", "Export"),
         Binding("H", "show_history", "History"),
@@ -172,7 +200,14 @@ class SearchApp(App):
         self.cache = cache
         self.history = history
         self.marked_links: Set[str] = set()
+        self.offset = 0
+        self._suggestions: List[str] = []
+        self._suggestion_index = -1
         self.title = "terch"
+
+    @property
+    def page(self) -> int:
+        return self.offset // self.max_results + 1 if self.max_results else 1
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -181,7 +216,11 @@ class SearchApp(App):
             with VerticalScroll(id="preview"):
                 yield Static(id="preview-content")
         yield Static(id="status")
-        yield Input(placeholder="New search query...", id="search-input")
+        with Vertical(id="search-box"):
+            yield Static(id="search-suggestions")
+            yield SearchInput(
+                placeholder="New search query... (↑/↓ history, Tab to accept)", id="search-input"
+            )
         yield Input(placeholder="Filter results...", id="filter-input")
         yield Input(placeholder="Export to path (.md or .json)...", id="export-input")
         yield Footer()
@@ -192,11 +231,19 @@ class SearchApp(App):
     # -- rendering -----------------------------------------------------
 
     def _populate(self, results: List[SearchResult]) -> None:
-        """A fresh set of results has arrived: replace the source of truth."""
+        """A fresh page of results has arrived: replace the source of truth."""
         self.results = results
         self.marked_links.clear()
-        self.sub_title = f"{self.query_str} · {self.provider.display_name}"
+        self.sub_title = f"{self.query_str} · {self.provider.display_name} · page {self.page}"
         self._render_list(results)
+
+    def _status_text(self) -> str:
+        if not self.results:
+            return "No results found."
+        return (
+            f"Page {self.page} · {len(self.results)} result(s) "
+            f"from [bold]{self.provider.display_name}[/bold]"
+        )
 
     def _render_list(self, results: List[SearchResult], focus_list: bool = True) -> None:
         """Render `results` into the list without touching self.results."""
@@ -205,11 +252,7 @@ class SearchApp(App):
         for res in results:
             list_view.append(ResultItem(res, marked=res.link in self.marked_links))
         if not self.query_one("#filter-input", Input).has_class("visible"):
-            self._set_status(
-                f"{len(results)} result(s) from [bold]{self.provider.display_name}[/bold]"
-                if results
-                else "No results found."
-            )
+            self._set_status(self._status_text())
         if results:
             list_view.index = 0
         self._update_preview()
@@ -250,9 +293,15 @@ class SearchApp(App):
     # -- navigation -----------------------------------------------------
 
     def action_cursor_down(self) -> None:
+        if self._search_input_visible():
+            self._cycle_suggestion(1)
+            return
         self.query_one("#results", ListView).action_cursor_down()
 
     def action_cursor_up(self) -> None:
+        if self._search_input_visible():
+            self._cycle_suggestion(-1)
+            return
         self.query_one("#results", ListView).action_cursor_up()
 
     def action_cursor_top(self) -> None:
@@ -317,7 +366,7 @@ class SearchApp(App):
     def _apply_filter(self, query: str) -> None:
         if not query:
             self._render_list(self.results, focus_list=False)
-            self._set_status(f"{len(self.results)} result(s) from [bold]{self.provider.display_name}[/bold]")
+            self._set_status(self._status_text())
             return
         scored = []
         for res in self.results:
@@ -330,10 +379,84 @@ class SearchApp(App):
         self._render_list(filtered, focus_list=False)
         self._set_status(f"Filter '{query}': {len(filtered)}/{len(self.results)} match(es)")
 
+    # -- pagination ----------------------------------------------------
+
+    def action_next_page(self) -> None:
+        self.offset += self.max_results
+        self._run_search(self.query_str, offset=self.offset, log_history=False)
+
+    def action_prev_page(self) -> None:
+        if self.offset == 0:
+            self._set_status("Already on the first page.")
+            return
+        self.offset = max(0, self.offset - self.max_results)
+        self._run_search(self.query_str, offset=self.offset, log_history=False)
+
+    # -- history-aware search suggestions --------------------------------
+
+    def _search_input_visible(self) -> bool:
+        return self.query_one("#search-box").has_class("visible")
+
+    def _recent_queries(self) -> List[str]:
+        if self.history is None:
+            return []
+        seen = set()
+        queries = []
+        for entry in self.history.recent_searches(limit=200):
+            q = entry["query"]
+            if q in seen:
+                continue
+            seen.add(q)
+            queries.append(q)
+        return queries
+
+    def _update_search_suggestions(self, typed: str) -> None:
+        queries = self._recent_queries()
+        if typed:
+            scored = [(fuzzy_score(typed, q), q) for q in queries]
+            scored = [(score, q) for score, q in scored if score is not None]
+            scored.sort(key=lambda pair: pair[0], reverse=True)
+            self._suggestions = [q for _, q in scored[:MAX_SUGGESTIONS]]
+        else:
+            self._suggestions = queries[:MAX_SUGGESTIONS]
+        self._suggestion_index = -1
+        self._render_suggestions()
+
+    def _cycle_suggestion(self, direction: int) -> None:
+        if not self._suggestions:
+            return
+        n = len(self._suggestions)
+        if self._suggestion_index == -1:
+            self._suggestion_index = 0 if direction > 0 else n - 1
+        else:
+            self._suggestion_index = (self._suggestion_index + direction) % n
+        self._render_suggestions()
+
+    def _render_suggestions(self) -> None:
+        box = self.query_one("#search-suggestions", Static)
+        if not self._suggestions:
+            box.update("")
+            return
+        text = Text("history: ", style="dim")
+        for i, q in enumerate(self._suggestions):
+            if i > 0:
+                text.append("  ·  ", style="dim")
+            text.append(q, style="reverse bold" if i == self._suggestion_index else "dim")
+        box.update(text)
+
+    def action_accept_suggestion(self) -> None:
+        if not self._suggestions:
+            return
+        idx = self._suggestion_index if self._suggestion_index != -1 else 0
+        chosen = self._suggestions[idx]
+        search_input = self.query_one("#search-input", Input)
+        search_input.value = chosen
+        search_input.cursor_position = len(chosen)
+
     # -- search / provider --------------------------------------------------
 
     def action_refresh_search(self) -> None:
-        self._run_search(self.query_str)
+        self._run_search(self.query_str, offset=self.offset)
 
     def action_new_search(self) -> None:
         self._show_input("search-input")
@@ -354,41 +477,57 @@ class SearchApp(App):
         if provider is not None:
             self.provider = provider
         self.query_str = entry["query"]
+        self.offset = 0
         self._run_search(self.query_str)
 
+    def _hide_all_inputs(self) -> None:
+        self.query_one("#search-box").remove_class("visible")
+        self.query_one("#filter-input", Input).remove_class("visible")
+        self.query_one("#export-input", Input).remove_class("visible")
+
     def _show_input(self, input_id: str) -> None:
-        for other_id in INPUT_IDS:
-            widget = self.query_one(f"#{other_id}", Input)
-            if other_id == input_id:
-                widget.value = ""
-                widget.add_class("visible")
-                widget.focus()
-            else:
-                widget.remove_class("visible")
+        self._hide_all_inputs()
+        if input_id == "search-input":
+            box = self.query_one("#search-box")
+            box.add_class("visible")
+            search_input = self.query_one("#search-input", Input)
+            search_input.value = ""
+            search_input.focus()
+            self._update_search_suggestions("")
+        else:
+            widget = self.query_one(f"#{input_id}", Input)
+            widget.value = ""
+            widget.add_class("visible")
+            widget.focus()
 
     def action_cancel_input(self) -> None:
-        filter_input = self.query_one("#filter-input", Input)
-        was_filtering = filter_input.has_class("visible")
-        for input_id in INPUT_IDS:
-            self.query_one(f"#{input_id}", Input).remove_class("visible")
+        was_filtering = self.query_one("#filter-input", Input).has_class("visible")
+        self._hide_all_inputs()
         self.query_one("#results", ListView).focus()
         if was_filtering:
             self._render_list(self.results)
-            self._set_status(f"{len(self.results)} result(s) from [bold]{self.provider.display_name}[/bold]")
+            self._set_status(self._status_text())
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "filter-input":
             self._apply_filter(event.value)
+        elif event.input.id == "search-input":
+            self._update_search_suggestions(event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         input_id = event.input.id
         value = event.value.strip()
-        event.input.remove_class("visible")
+
+        if input_id == "search-input" and self._suggestion_index != -1 and self._suggestions:
+            value = self._suggestions[self._suggestion_index]
+
+        self._hide_all_inputs()
         self.query_one("#results", ListView).focus()
 
         if input_id == "search-input":
             if value:
                 self.query_str = value
+                self.offset = 0
                 self._run_search(value)
         elif input_id == "filter-input":
             pass  # already applied live; Enter just returns focus to the list
@@ -416,14 +555,20 @@ class SearchApp(App):
             return
         current = names.index(self.provider.name)
         self.provider = self.providers[names[(current + 1) % len(names)]]
+        self.offset = 0
         self._run_search(self.query_str)
 
     @work(exclusive=True, thread=True)
-    def _run_search(self, query: str) -> None:
+    def _run_search(self, query: str, offset: int = 0, log_history: bool = True) -> None:
         self.call_from_thread(self._set_status, f"Searching {self.provider.display_name}...")
         try:
             results = perform_search(
-                self.provider, query, self.max_results, cache=self.cache, history=self.history
+                self.provider,
+                query,
+                self.max_results,
+                offset=offset,
+                cache=self.cache,
+                history=self.history if log_history else None,
             )
         except Exception as exc:
             self.call_from_thread(self._set_status, f"[bold red]Search error:[/bold red] {exc}")

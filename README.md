@@ -15,8 +15,10 @@
 - **Stays Open:** Pressing `Enter` opens a link in your default browser without closing the app, so you can open several results from one search.
 - **Multi-Select:** Mark multiple results and open them all at once.
 - **Fuzzy Filter:** Narrow down the currently loaded results locally (no extra network round-trip) as you type.
+- **History-Aware Search:** The `/` search box suggests matching past queries as you type — arrow through them, `Tab` to accept.
+- **Pagination:** `n` / `N` fetch the next/previous page of results for the same query.
 - **In-App Search & Provider Switching:** Run a new query or switch search engines without leaving the app.
-- **Result Caching:** Repeat queries are served from a local cache instead of re-hitting the API.
+- **Result Caching:** Repeat queries (including pages you've already visited) are served from a local cache instead of re-hitting the API.
 - **Search History:** Every search (and every link you open) is logged; browse and re-run past searches from inside the app.
 - **Export:** Dump the current (or marked) results to Markdown or JSON.
 - **Config File:** Set defaults (provider, result count, cache behavior) once in `~/.config/terch/config.toml`.
@@ -25,22 +27,25 @@
 
 ### Keybindings
 
-| Key(s)           | Action                                     |
-| ---------------- | ------------------------------------------ |
-| `↑`/`↓`, `k`/`j` | Move selection                             |
-| `g` / `G`        | Jump to first / last result                |
-| `Enter` / `o`    | Open selected link in browser (stays open) |
-| `Space`          | Mark / unmark the selected result          |
-| `O`              | Open all marked links (or selection)       |
-| `y`              | Copy the selected link to the clipboard    |
-| `/`              | Run a new search                           |
-| `f`              | Fuzzy-filter the loaded results locally    |
-| `p`              | Cycle to the next configured search engine |
-| `r`              | Re-run the current search                  |
-| `e`              | Export results (marked, or all) to a file  |
-| `H`              | Browse & re-run recent searches            |
-| `Esc`            | Cancel the current input box / filter      |
-| `q` / `Ctrl+C`   | Quit                                       |
+| Key(s)           | Action                                                                            |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `↑`/`↓`, `k`/`j` | Move selection                                                                    |
+| `g` / `G`        | Jump to first / last result                                                       |
+| `Enter` / `o`    | Open selected link in browser (stays open)                                        |
+| `Space`          | Mark / unmark the selected result                                                 |
+| `O`              | Open all marked links (or selection)                                              |
+| `y`              | Copy the selected link to the clipboard                                           |
+| `/`              | Run a new search (↑/↓ to browse history suggestions, Tab to accept, Enter to run) |
+| `f`              | Fuzzy-filter the loaded results locally                                           |
+| `n` / `N`        | Next / previous page of results                                                   |
+| `p`              | Cycle to the next configured search engine                                        |
+| `r`              | Re-run the current search                                                         |
+| `e`              | Export results (marked, or all) to a file                                         |
+| `H`              | Browse & re-run recent searches                                                   |
+| `Esc`            | Cancel the current input box / filter                                             |
+| `q` / `Ctrl+C`   | Quit                                                                              |
+
+> DuckDuckGo's pagination goes through its unofficial HTML endpoint (there's no public API), so page 2+ can overlap with earlier pages. Google, Bing, Brave, and SearXNG paginate cleanly through their real APIs.
 
 ---
 

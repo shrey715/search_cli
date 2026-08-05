@@ -26,9 +26,11 @@ class SearXNGProvider(BaseSearchProvider):
     def is_configured(self) -> bool:
         return bool(self.base_url)
 
-    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
+    def search(self, query: str, max_results: int = 5, offset: int = 0) -> List[SearchResult]:
         url = f"{self.base_url}/search"
-        params = {"q": query, "format": "json"}
+        # SearXNG paginates by 1-based page number, not raw result offset.
+        pageno = offset // max(max_results, 1) + 1
+        params = {"q": query, "format": "json", "pageno": pageno}
 
         res = requests.get(url, params=params, timeout=10)
         if res.status_code != 200:
@@ -36,7 +38,7 @@ class SearXNGProvider(BaseSearchProvider):
         data = res.json()
 
         results: List[SearchResult] = []
-        for idx, item in enumerate(data.get("results", [])[:max_results], start=1):
+        for idx, item in enumerate(data.get("results", [])[:max_results], start=offset + 1):
             results.append(
                 SearchResult(
                     title=item.get("title", "No Title"),

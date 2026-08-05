@@ -20,13 +20,15 @@ class BraveProvider(BaseSearchProvider):
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
+    def search(self, query: str, max_results: int = 5, offset: int = 0) -> List[SearchResult]:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {
             "Accept": "application/json",
             "X-Subscription-Token": self.api_key,
         }
-        params = {"q": query, "count": min(max_results, 20)}
+        count = min(max_results, 20)
+        # Brave's `offset` is a page number in units of `count`, not a raw result offset.
+        params = {"q": query, "count": count, "offset": offset // max(count, 1)}
 
         res = requests.get(url, headers=headers, params=params, timeout=10)
         data = res.json()
@@ -38,7 +40,7 @@ class BraveProvider(BaseSearchProvider):
             raise RuntimeError(f"Brave API Error: {message}")
 
         results: List[SearchResult] = []
-        for idx, item in enumerate(data.get("web", {}).get("results", []), start=1):
+        for idx, item in enumerate(data.get("web", {}).get("results", []), start=offset + 1):
             results.append(
                 SearchResult(
                     title=item.get("title", "No Title"),

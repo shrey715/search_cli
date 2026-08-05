@@ -34,6 +34,10 @@ class BaseSearchProvider(ABC):
         pass
 
     @abstractmethod
-    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
-        """Perform search query and return standardized SearchResult items."""
+    def search(self, query: str, max_results: int = 5, offset: int = 0) -> List[SearchResult]:
+        """Perform search query and return standardized SearchResult items.
+
+        `offset` is the number of results to skip (for pagination); each
+        provider maps it onto whatever paging scheme its API actually uses.
+        """
         pass

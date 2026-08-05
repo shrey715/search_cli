@@ -20,10 +20,10 @@ class BingProvider(BaseSearchProvider):
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
+    def search(self, query: str, max_results: int = 5, offset: int = 0) -> List[SearchResult]:
         url = "https://api.bing.microsoft.com/v7.0/search"
         headers = {"Ocp-Apim-Subscription-Key": self.api_key}
-        params = {"q": query, "count": min(max_results, 50)}
+        params = {"q": query, "count": min(max_results, 50), "offset": offset}
 
         res = requests.get(url, headers=headers, params=params, timeout=10)
         data = res.json()
@@ -32,7 +32,7 @@ class BingProvider(BaseSearchProvider):
             raise RuntimeError(f"Bing API Error: {data['error'].get('message', 'Unknown error')}")
 
         results: List[SearchResult] = []
-        for idx, item in enumerate(data.get("webPages", {}).get("value", []), start=1):
+        for idx, item in enumerate(data.get("webPages", {}).get("value", []), start=offset + 1):
             results.append(
                 SearchResult(
                     title=item.get("name", "No Title"),

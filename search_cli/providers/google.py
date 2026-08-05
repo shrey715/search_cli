@@ -21,13 +21,14 @@ class GoogleProvider(BaseSearchProvider):
     def is_configured(self) -> bool:
         return bool(self.api_key and self.cx)
 
-    def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
+    def search(self, query: str, max_results: int = 5, offset: int = 0) -> List[SearchResult]:
         url = "https://www.googleapis.com/customsearch/v1"
         params = {
             "key": self.api_key,
             "cx": self.cx,
             "q": query,
             "num": min(max_results, 10),
+            "start": offset + 1,
         }
 
         res = requests.get(url, params=params, timeout=10)
@@ -39,7 +40,7 @@ class GoogleProvider(BaseSearchProvider):
             )
 
         results: List[SearchResult] = []
-        for idx, item in enumerate(data.get("items", []), start=1):
+        for idx, item in enumerate(data.get("items", []), start=offset + 1):
             results.append(
                 SearchResult(
                     title=item.get("title", "No Title"),
