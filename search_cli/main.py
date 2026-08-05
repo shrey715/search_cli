@@ -2,20 +2,13 @@ import argparse
 import sys
 from dotenv import load_dotenv
 
-# Load local environment variables from .env
+# Load environment variables from .env, then let .env.local override them
 load_dotenv()
+load_dotenv(".env.local", override=True)
 
-from search_cli.providers import (
-    DuckDuckGoProvider,
-    GoogleProvider,
-    get_configured_providers,
-)
-from search_cli.ui import (
-    console,
-    display_header,
-    display_results,
-    prompt_interactive_selection,
-)
+from search_cli.providers import get_configured_providers
+from search_cli.tui import SearchApp
+from search_cli.ui import console
 
 
 def main():
@@ -64,10 +57,7 @@ def main():
 
     provider = configured_providers[selected_provider_name]
 
-    # Display Header UI
-    display_header(query_str, provider.display_name)
-
-    # Perform Search
+    # Perform initial search before entering the full-screen TUI
     try:
         with console.status(
             f"[bold green]Fetching results from {provider.display_name}...[/bold green]",
@@ -78,9 +68,15 @@ def main():
         console.print(f"[bold red]Search error:[/bold red] {e}")
         sys.exit(1)
 
-    # Render Results & Interactive Navigation
-    display_results(results)
-    prompt_interactive_selection(results)
+    # Hand off to the interactive, keybind-driven TUI
+    app = SearchApp(
+        query=query_str,
+        results=results,
+        provider=provider,
+        providers=configured_providers,
+        max_results=args.max_results,
+    )
+    app.run()
 
 
 if __name__ == "__main__":

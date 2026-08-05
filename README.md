@@ -11,10 +11,28 @@
 ## Features
 
 - **Modular Architecture:** Easily plug in custom search engines (Google Custom Search API, DuckDuckGo, Tavily, etc.).
-- **Interactive Terminal Navigation:** Move between search results using arrow keys (`Up` / `Down`) or Vim keybindings (`k` / `j`) and press `Enter` to open links in your browser.
-- **Rich Terminal UI:** Formatted result cards with ANSI hyperlinks (`OSC 8`), domain badges, and custom padding.
+- **Full-Screen TUI:** Built with [Textual](https://textual.textualize.io/) — a compact, scrollable list of results next to a live detail preview, so you never have to scroll up and down to read a snippet.
+- **Stays Open:** Pressing `Enter` opens a link in your default browser without closing the app, so you can open several results from one search.
+- **Multi-Select:** Mark multiple results and open them all at once.
+- **In-App Search & Provider Switching:** Run a new query or switch search engines without leaving the app.
 - **Automatic Fallbacks:** Defaults to DuckDuckGo (zero setup required) if Google API keys are not provided.
 - **Built with Modern Python Tooling:** Managed via `uv` and packaged using `hatchling`.
+
+### Keybindings
+
+| Key(s)           | Action                                     |
+| ---------------- | ------------------------------------------ |
+| `↑`/`↓`, `k`/`j` | Move selection                             |
+| `g` / `G`        | Jump to first / last result                |
+| `Enter` / `o`    | Open selected link in browser (stays open) |
+| `Space`          | Mark / unmark the selected result          |
+| `O`              | Open all marked links (or selection)       |
+| `y`              | Copy the selected link to the clipboard    |
+| `/`              | Run a new search                           |
+| `p`              | Cycle to the next configured search engine |
+| `r`              | Re-run the current search                  |
+| `Esc`            | Cancel the search input box                |
+| `q` / `Ctrl+C`   | Quit                                       |
 
 ---
 
@@ -52,6 +70,8 @@ terch "latest machine learning papers" -n 3
 
 ```
 
+This drops you into a full-screen TUI — see [Keybindings](#keybindings) above for how to navigate it.
+
 ---
 
 ## Configuration & API Keys
@@ -66,13 +86,15 @@ export GOOGLE_CX_ID="your_custom_search_engine_id"
 
 ```
 
-Or create a `.env` file in your working directory:
+Or copy [`.env.example`](.env.example) to `.env` (or `.env.local`) in your working directory and fill in the values:
 
 ```env
 GOOGLE_API_KEY=your_google_api_key
 GOOGLE_CX_ID=your_custom_search_engine_id
 
 ```
+
+`.env` and `.env.local` are both gitignored, so your keys never get committed.
 
 ---
 
