@@ -10,12 +10,17 @@
 
 ## Features
 
-- **Modular Architecture:** Easily plug in custom search engines (Google Custom Search API, DuckDuckGo, Tavily, etc.).
+- **Modular Architecture:** Easily plug in custom search engines — ships with Google Custom Search, DuckDuckGo, Bing, Brave, and SearXNG.
 - **Full-Screen TUI:** Built with [Textual](https://textual.textualize.io/) — a compact, scrollable list of results next to a live detail preview, so you never have to scroll up and down to read a snippet.
 - **Stays Open:** Pressing `Enter` opens a link in your default browser without closing the app, so you can open several results from one search.
 - **Multi-Select:** Mark multiple results and open them all at once.
+- **Fuzzy Filter:** Narrow down the currently loaded results locally (no extra network round-trip) as you type.
 - **In-App Search & Provider Switching:** Run a new query or switch search engines without leaving the app.
-- **Automatic Fallbacks:** Defaults to DuckDuckGo (zero setup required) if Google API keys are not provided.
+- **Result Caching:** Repeat queries are served from a local cache instead of re-hitting the API.
+- **Search History:** Every search (and every link you open) is logged; browse and re-run past searches from inside the app.
+- **Export:** Dump the current (or marked) results to Markdown or JSON.
+- **Config File:** Set defaults (provider, result count, cache behavior) once in `~/.config/terch/config.toml`.
+- **Automatic Fallbacks:** Defaults to DuckDuckGo (zero setup required) if no other provider is configured.
 - **Built with Modern Python Tooling:** Managed via `uv` and packaged using `hatchling`.
 
 ### Keybindings
@@ -29,9 +34,12 @@
 | `O`              | Open all marked links (or selection)       |
 | `y`              | Copy the selected link to the clipboard    |
 | `/`              | Run a new search                           |
+| `f`              | Fuzzy-filter the loaded results locally    |
 | `p`              | Cycle to the next configured search engine |
 | `r`              | Re-run the current search                  |
-| `Esc`            | Cancel the search input box                |
+| `e`              | Export results (marked, or all) to a file  |
+| `H`              | Browse & re-run recent searches            |
+| `Esc`            | Cancel the current input box / filter      |
 | `q` / `Ctrl+C`   | Quit                                       |
 
 ---
@@ -68,6 +76,12 @@ terch "python rich cli" -p duckduckgo
 # Limit result count
 terch "latest machine learning papers" -n 3
 
+# Bypass the result cache for this run
+terch "breaking news" --no-cache
+
+# Search and export straight to a file, skipping the TUI entirely
+terch "python rich cli" --export results.md
+
 ```
 
 This drops you into a full-screen TUI — see [Keybindings](#keybindings) above for how to navigate it.
@@ -76,25 +90,50 @@ This drops you into a full-screen TUI — see [Keybindings](#keybindings) above 
 
 ## Configuration & API Keys
 
-`terch` works out-of-the-box using DuckDuckGo without requiring any API keys.
-
-To use **Google Custom Search API**, set your credentials in a `.env` file or export them to your shell environment:
+`terch` works out-of-the-box using DuckDuckGo without requiring any API keys. Other providers need credentials, set via a `.env` file, `.env.local` (local overrides, gitignored), or exported to your shell:
 
 ```bash
+# Google Custom Search: https://developers.google.com/custom-search/v1/introduction
 export GOOGLE_API_KEY="your_google_api_key"
 export GOOGLE_CX_ID="your_custom_search_engine_id"
 
+# Bing Web Search (Azure Cognitive Services)
+export BING_API_KEY="your_bing_api_key"
+
+# Brave Search API: https://brave.com/search/api/
+export BRAVE_API_KEY="your_brave_api_key"
+
+# A SearXNG instance with JSON output enabled
+export SEARXNG_URL="https://your-searxng-instance.example.com"
+
 ```
 
-Or copy [`.env.example`](.env.example) to `.env` (or `.env.local`) in your working directory and fill in the values:
+Copy [`.env.example`](.env.example) as a starting point. `.env` and `.env.local` are both gitignored, so your keys never get committed.
 
-```env
-GOOGLE_API_KEY=your_google_api_key
-GOOGLE_CX_ID=your_custom_search_engine_id
+### Config File
+
+Set defaults once in `~/.config/terch/config.toml` instead of passing flags every time:
+
+```toml
+default_provider = "duckduckgo"
+max_results = 15
+cache_enabled = true
+cache_ttl = 900          # seconds
+history_enabled = true
 
 ```
 
-`.env` and `.env.local` are both gitignored, so your keys never get committed.
+CLI flags (`-p`, `-n`, `--no-cache`) always override the config file.
+
+### Caching & History
+
+Searches are cached on disk (`~/.cache/terch/cache.json`) for `cache_ttl` seconds (default 15 minutes), so re-running the same query against the same provider doesn't hit the network again. Disable it per-run with `--no-cache`, or permanently via `cache_enabled = false` in the config file.
+
+Every search and every link you open is logged to `~/.local/share/terch/history.jsonl`. Press `H` in the TUI to browse recent searches and re-run one with `Enter`.
+
+### Exporting Results
+
+Press `e` in the TUI and type a path — marked results are exported if any are marked, otherwise all currently loaded results are. The format is chosen by extension: `.json` for structured data, anything else (e.g. `.md`) for a Markdown list of links. `--export PATH` does the same thing from the command line for one-shot scripting, skipping the TUI entirely.
 
 ---
 

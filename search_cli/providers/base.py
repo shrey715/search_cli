@@ -1,6 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import List
+from bs4 import BeautifulSoup
 from search_cli.models import SearchResult
+
+
+def strip_html(text: str) -> str:
+    """Strip HTML highlight tags (e.g. <strong>) some APIs embed in snippets."""
+    if not text:
+        return text
+    return BeautifulSoup(text, "html.parser").get_text()
 
 
 class BaseSearchProvider(ABC):
